@@ -172,22 +172,22 @@ def draw_screen_view(self, surface, persistence_time=1.0):
     """
 
     view_rect = self.screen_view
-    
+
     # Fondo negro de la pantalla del CRT
     pygame.draw.rect(surface, (0, 0, 0), view_rect)
     pygame.draw.rect(surface, self.colors['border'], view_rect, 3)
-    
+
     # Título
     title = self.title_font.render("Pantalla del CRT", True, self.colors['text'])
     surface.blit(title, (view_rect.x, view_rect.y - 25))
-    
+
     # Limpiar puntos antiguos basado en el tiempo de persistencia
     current_time = time.time()
     self.screen_persistence = deque([
         (pos, timestamp, brightness) for pos, timestamp, brightness in self.screen_persistence
         if current_time - timestamp < persistence_time
     ], maxlen=1000)
-    
+
     # Dibujar puntos persistentes con fade-out
     for pos, timestamp, brightness in self.screen_persistence:
         age = current_time - timestamp
@@ -206,3 +206,82 @@ def draw_screen_view(self, surface, persistence_time=1.0):
             # Efecto de brillo
             glow_color = (0, color_intensity // 3, 0)
             pygame.draw.circle(surface, glow_color, (screen_x, screen_y), 4)
+
+def draw_coordinate_system(self, surface, view_rect, title):
+    """
+    Dibuja un sistema de coordenadas para las vistas
+    """
+
+    # Ejes
+    center_x = view_rect.centerx
+    center_y = view_rect.centery
+    
+    # Eje X
+    pygame.draw.line(surface, (100, 100, 100), 
+                    (view_rect.x + 20, center_y), 
+                    (view_rect.right - 20, center_y), 1)
+    # Eje Y
+    pygame.draw.line(surface, (100, 100, 100), 
+                    (center_x, view_rect.y + 30), 
+                    (center_x, view_rect.bottom - 20), 1)
+
+def add_screen_point(self, normalized_x, normalized_y, brightness=1.0):
+    """
+    Añade un punto a la pantalla con coordenadas normalizadas (0-1)
+    """
+
+    # Asegurar que las coordenadas estén en el rango válido
+    normalized_x = max(0, min(1, normalized_x))
+    normalized_y = max(0, min(1, normalized_y))
+    
+    current_time = time.time()
+    self.screen_persistence.append(((normalized_x, normalized_y), current_time, brightness))
+
+def clear_screen_persistence(self):
+    """Limpia todos los puntos persistentes de la pantalla"""
+    self.screen_persistence.clear()
+
+def draw_info_panel(self, surface, V_acc, V_vert, V_horiz, mode_text="Manual"):
+    """Dibuja panel de información con valores actuales"""
+    info_x = 50
+    info_y = 300
+    
+    info_texts = [
+        f"Modo: {mode_text}",
+        f"V_aceleración: {V_acc:.0f} V",
+        f"V_vertical: {V_vert:.0f} V", 
+        f"V_horizontal: {V_horiz:.0f} V"
+    ]
+    
+    for i, text in enumerate(info_texts):
+        rendered_text = self.font.render(text, True, self.colors['text'])
+        surface.blit(rendered_text, (info_x, info_y + i * 25))
+
+def draw_all_views(self, surface, V_acc=1000, V_vert=0, V_horiz=0, 
+                    persistence_time=1.0, mode_text="Manual"):
+    """
+    Función principal que dibuja todas las vistas del CRT
+    """
+
+    # Limpiar fondo
+    surface.fill((255, 255, 255))
+    
+    # Dibujar las tres vistas
+    self.draw_lateral_view(surface, V_acc, V_vert)
+    self.draw_top_view(surface, V_horiz)
+    self.draw_screen_view(surface, persistence_time)
+    
+    # Panel de información
+    self.draw_info_panel(surface, V_acc, V_vert, V_horiz, mode_text)
+    
+    # Instrucciones para el usuario
+    instructions = [
+        "Controles:",
+        "- Ajustar voltajes con sliders",
+        "- Cambiar modo para Lissajous",
+        "- Tiempo de persistencia"
+    ]
+    
+    for i, instruction in enumerate(instructions):
+        text = self.font.render(instruction, True, self.colors['text'])
+        surface.blit(text, (50, 450 + i * 20))
