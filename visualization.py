@@ -43,3 +43,166 @@ class CRTVisualizer:
         pygame.font.init()
         self.font = pygame.font.SysFont('Arial', 16)
         self.title_font = pygame.font.SysFont('Arial', 18, bold=True)
+
+def draw_lateral_view(self, surface, V_acc=1000, V_vert=0):
+    """
+    Dibuja la vista lateral del CRT (muestra deflexión vertical)
+    """
+
+    view_rect = self.lateral_view
+    pygame.draw.rect(surface, self.colors['background'], view_rect)
+    pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
+    
+    # Título
+    title = self.title_font.render("Vista Lateral", True, self.colors['text'])
+    surface.blit(title, (view_rect.x + 10, view_rect.y + 5))
+    
+    # Dibujar el tubo del CRT
+    tube_rect = pygame.Rect(view_rect.x + 30, view_rect.y + 80, 280, 60)
+    pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
+    
+    # Dibujar placas de deflexión vertical
+    plate_y_top = view_rect.y + 70
+    plate_y_bottom = view_rect.y + 150
+    plate_x = view_rect.x + 200
+    
+    # Placa superior
+    pygame.draw.rect(surface, self.colors['plates'], 
+                    (plate_x, plate_y_top, 40, 8), 0)
+    # Placa inferior  
+    pygame.draw.rect(surface, self.colors['plates'], 
+                    (plate_x, plate_y_bottom, 40, 8), 0)
+    
+    # Mostrar polaridad de las placas
+    polarity_text = "+" if V_vert > 0 else "-" if V_vert < 0 else "0"
+    text_pos = surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
+                            (plate_x + 45, plate_y_top - 5))
+    
+    polarity_text = "-" if V_vert > 0 else "+" if V_vert < 0 else "0"
+    surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
+                (plate_x + 45, plate_y_bottom + 10))
+    
+    # Dibujar trayectoria del electrón (simplificada para esta vista)
+    start_x = view_rect.x + 50
+    start_y = view_rect.y + 110
+    
+    # Calcular deflexión aproximada basada en V_vert
+    deflection = (V_vert / 1000) * 30  # Escalado para visualización
+    
+    # Trayectoria en tres segmentos
+    points = [
+        (start_x, start_y),  # Inicio
+        (plate_x, start_y),  # Antes de las placas
+        (plate_x + 40, start_y + deflection),  # Después de las placas
+        (view_rect.x + 320, start_y + deflection * 1.5)  # Hacia la pantalla
+    ]
+    
+    if len(points) > 1:
+        pygame.draw.lines(surface, self.colors['electron_trail'], False, points, 2)
+    
+    # Dibujar electrón actual
+    electron_pos = points[-1]
+    pygame.draw.circle(surface, self.colors['electron'], 
+                        (int(electron_pos[0]), int(electron_pos[1])), 4)
+
+def draw_top_view(self, surface, V_horiz=0):
+    """
+    Dibuja la vista superior del CRT (muestra deflexión horizontal)
+    """
+    
+    view_rect = self.top_view
+    pygame.draw.rect(surface, self.colors['background'], view_rect)
+    pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
+    
+    # Título
+    title = self.title_font.render("Vista Superior", True, self.colors['text'])
+    surface.blit(title, (view_rect.x + 10, view_rect.y + 5))
+    
+    # Dibujar el tubo del CRT
+    tube_rect = pygame.Rect(view_rect.x + 30, view_rect.y + 80, 280, 60)
+    pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
+    
+    # Dibujar placas de deflexión horizontal
+    plate_x_left = view_rect.x + 160
+    plate_x_right = view_rect.x + 260
+    plate_y = view_rect.y + 105
+    
+    # Placa izquierda
+    pygame.draw.rect(surface, self.colors['plates'], 
+                    (plate_x_left, plate_y, 8, 30), 0)
+    # Placa derecha
+    pygame.draw.rect(surface, self.colors['plates'], 
+                    (plate_x_right, plate_y, 8, 30), 0)
+    
+    # Mostrar polaridad de las placas
+    polarity_text = "+" if V_horiz > 0 else "-" if V_horiz < 0 else "0"
+    surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
+                (plate_x_right + 15, plate_y + 10))
+    
+    polarity_text = "-" if V_horiz > 0 else "+" if V_horiz < 0 else "0"
+    surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
+                (plate_x_left - 15, plate_y + 10))
+    
+    # Dibujar trayectoria del electrón
+    start_x = view_rect.x + 50
+    start_y = view_rect.y + 120
+    
+    # Calcular deflexión aproximada basada en V_horiz
+    deflection = (V_horiz / 1000) * 25  # Escalado para visualización
+    
+    # Trayectoria en tres segmentos
+    points = [
+        (start_x, start_y),  # Inicio
+        (plate_x_left, start_y),  # Antes de las placas
+        (plate_x_right + 8, start_y + deflection),  # Después de las placas
+        (view_rect.x + 320, start_y + deflection * 1.3)  # Hacia la pantalla
+    ]
+    
+    if len(points) > 1:
+        pygame.draw.lines(surface, self.colors['electron_trail'], False, points, 2)
+    
+    # Dibujar electrón actual
+    electron_pos = points[-1]
+    pygame.draw.circle(surface, self.colors['electron'], 
+                        (int(electron_pos[0]), int(electron_pos[1])), 4)
+
+def draw_screen_view(self, surface, persistence_time=1.0):
+    """
+    Dibuja la vista frontal de la pantalla del CRT
+    """
+
+    view_rect = self.screen_view
+    
+    # Fondo negro de la pantalla del CRT
+    pygame.draw.rect(surface, (0, 0, 0), view_rect)
+    pygame.draw.rect(surface, self.colors['border'], view_rect, 3)
+    
+    # Título
+    title = self.title_font.render("Pantalla del CRT", True, self.colors['text'])
+    surface.blit(title, (view_rect.x, view_rect.y - 25))
+    
+    # Limpiar puntos antiguos basado en el tiempo de persistencia
+    current_time = time.time()
+    self.screen_persistence = deque([
+        (pos, timestamp, brightness) for pos, timestamp, brightness in self.screen_persistence
+        if current_time - timestamp < persistence_time
+    ], maxlen=1000)
+    
+    # Dibujar puntos persistentes con fade-out
+    for pos, timestamp, brightness in self.screen_persistence:
+        age = current_time - timestamp
+        fade_factor = max(0, 1 - (age / persistence_time))
+        
+        # Color con fade
+        color_intensity = int(brightness * fade_factor * 255)
+        color = (0, color_intensity, 0)  # Verde fosforescente
+        
+        screen_x = view_rect.x + int(pos[0] * view_rect.width)
+        screen_y = view_rect.y + int(pos[1] * view_rect.height)
+        
+        # Dibujar punto con glow effect
+        if color_intensity > 0:
+            pygame.draw.circle(surface, color, (screen_x, screen_y), 2)
+            # Efecto de brillo
+            glow_color = (0, color_intensity // 3, 0)
+            pygame.draw.circle(surface, glow_color, (screen_x, screen_y), 4)
