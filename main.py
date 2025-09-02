@@ -43,7 +43,7 @@ def draw_ui(screen, color_mode, xpos=50, ypos=350):
 def handle_ui_events(event, mode_button):
     """Maneja los eventos de la interfaz de usuario."""
     global V_acc, V_vert, V_horiz, persistence, freq_v, freq_h, mode
- 
+
     for slider in sliders:
         if slider.handle_event(event):
             # Actualizar variables globales según el slider
