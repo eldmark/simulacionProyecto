@@ -40,6 +40,77 @@ def region_time(ini_speed_val):
         "reach_screen": (db_plates_canyon + lon_plates + db_between_plates + lon_plates + db_plates_screen) / ini_speed_val
     }
 
+def get_position_normal_mode(accel_vol, hplates_V, vplates_V, ini_speed_val):
+    # Tiempo entre placas
+    time = total_time(ini_speed_val)
+
+    time_post_plate = db_plates_screen / ini_speed_val
+
+    #Aceleración horizontal (placas verticales)
+    helectric_field = electric_field(hplates_V)
+    h_acc = e_field_accel(helectric_field)
+
+    # Aceleración vertical (placas horizontales)
+    velectric_field = electric_field(vplates_V)
+    v_acc = e_field_accel(velectric_field)
+    
+    # Velocidad a la que llega el electron
+    ini_speed = ini_speed(accel_vol)
+
+    x_position = (1/2) * h_acc * time**2
+    y_position = (1/2) * v_acc * time**2
+    
+    # PLano ZY (Z es horizontal, Y es vertical)
+    vfy = v_acc * time_post_plate
+    final_y_position = y_position + (vfy *time_post_plate)
+
+    vfx = h_acc * time_post_plate
+    final_x_position = x_position + (vfx *time_post_plate)
+
+    z_position = ini_speed*time
+
+    return (x_position, y_position, z_position)
+
+def sinusoidal_signal(time, freq, amplitude, phase):
+    return amplitude*np.sin(2 * np.pi * freq * time + phase)
+
+# Time between plates
+def total_time(ini_speed_val):
+    return db_plates_screen / ini_speed_val
+
+def position_sinusoidal_mode(ini_speed_val, e_accel, h_freq, v_freq, amplitude, phase):
+        # Tiempo entre placas
+    time = total_time(ini_speed_val)
+
+    time_post_plate = db_plates_screen / ini_speed_val
+
+    #Aceleración horizontal (placas verticales)
+    hplates_V = sinusoidal_signal(time, h_freq, amplitude, phase)
+    helectric_field = electric_field(hplates_V)
+    h_acc = e_field_accel(helectric_field)
+
+    # Aceleración vertical (placas horizontales)
+    vplates_V = sinusoidal_signal(time, v_freq, amplitude, phase)
+    velectric_field = electric_field(vplates_V)
+    v_acc = e_field_accel(velectric_field)
+    
+    # Velocidad a la que llega el electron
+    ini_speed = ini_speed(e_accel)
+
+    x_position = (1/2) * h_acc * time**2
+    y_position = (1/2) * v_acc * time**2
+    
+    # PLano ZY (Z es horizontal, Y es vertical)
+    vfy = v_acc * time_post_plate
+    final_y_position = y_position + (vfy *time_post_plate)
+
+    vfx = h_acc * time_post_plate
+    final_x_position = x_position + (vfx *time_post_plate)
+
+    z_position = ini_speed*time
+
+    return (x_position, y_position, z_position)
+
 def determine_region(time, times):
     """Determina en qué región del CRT se encuentra el electrón en un tiempo dado."""
     if time <= times["time_0"]:
