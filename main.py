@@ -2,6 +2,7 @@ import pygame
 from pygame.locals import *
 from slider import Slider
 from visualization import CRTVisualizer
+import numpy as np
 
 # Inicializar modo global
 mode = False
@@ -13,41 +14,173 @@ V_horiz = 0
 persistence = 1.0
 freq_v = 1.0
 freq_h = 1.0
+phase_v = 0
+phase_h = 0
 
 sliders = []
+buttons = []
 
-def draw_ui(screen, color_mode, xpos=50, ypos=350):
+def draw_ui(screen):
     """Dibuja la interfaz de usuario con todos los controles."""
+    # Fondo del panel de control mejorado
+    panel_rect = pygame.Rect(10, 10, 370, 670)
+    
+    # Sombra del panel
+    shadow_rect = pygame.Rect(12, 12, 370, 670)
+    pygame.draw.rect(screen, (200, 200, 210), shadow_rect, border_radius=8)
+    
+    # Panel principal con gradiente simulado
+    pygame.draw.rect(screen, (245, 248, 252), panel_rect, border_radius=8)
+    pygame.draw.rect(screen, (180, 190, 200), panel_rect, 2, border_radius=8)
+    
+    # Barra superior del panel
+    header_rect = pygame.Rect(10, 10, 370, 50)
+    pygame.draw.rect(screen, (65, 105, 225), header_rect, border_top_left_radius=8, border_top_right_radius=8)
+    
+    # Tí­tulo del panel
+    font_title = pygame.font.SysFont('Arial', 24, bold=True)
+    title = font_title.render("CONTROLES CRT", True, (255, 255, 255))
+    title_x = header_rect.centerx - title.get_width() // 2
+    screen.blit(title, (title_x, 25))
+    
     # Dibujar sliders
     for slider in sliders:
-        slider.draw(screen, title_font_size=30, value_font_size=30, title_offset_y=70, value_offset_y=40, line_thickness=8, handle_radius=20)
+        slider.draw(screen, title_font_size=18, value_font_size=16, 
+                   title_offset_y=22, value_offset_y=12, line_thickness=4, handle_radius=8)
     
-    # Dibujar botón de modo
-    font = pygame.font.SysFont(None, 30)
-    if not mode:
-        mode_text = font.render(f"Modo: Manual", True, color_mode[0])
-    else:
-        mode_text = font.render(f"Modo: Toggle", True, color_mode[0])
-    screen.blit(mode_text, (50, 350))
+    # Sección de botones 
+    buttons_y = 400
+    font_section = pygame.font.SysFont('Arial', 20, bold=True)
+    section_title = font_section.render("ACCIONES", True, (60, 70, 80))
+    screen.blit(section_title, (30, buttons_y - 25))
     
-    # Aquí están las coordenadas del botón
-    mode_button = pygame.Rect(ypos, xpos, 170, 40)
-    pygame.draw.rect(screen, color_mode[1], mode_button, 2)
+    # Dibujar botones
+    font_btn = pygame.font.SysFont('Arial', 16, bold=True)
+    for i, button in enumerate(buttons):
+        mouse_pos = pygame.mouse.get_pos()
+        is_hovered = button['rect'].collidepoint(mouse_pos)
+        
+        # Colores según el tipo de botón y estado
+        if button['id'] == 'mode':
+            base_color = (46, 125, 50) if not mode else (255, 152, 0)
+            hover_color = (56, 142, 60) if not mode else (255, 167, 38)
+        else:  # reset button
+            base_color = (211, 47, 47)
+            hover_color = (229, 57, 53)
+        
+        btn_color = hover_color if is_hovered else base_color
+        
+        # Sombra del botón
+        shadow_rect = pygame.Rect(button['rect'].x + 2, button['rect'].y + 2, 
+                                button['rect'].width, button['rect'].height)
+        pygame.draw.rect(screen, (0, 0, 0, 50), shadow_rect, border_radius=6)
+        
+        # Botón principal
+        pygame.draw.rect(screen, btn_color, button['rect'], border_radius=6)
+        
+        # Borde del botón
+        border_color = (255, 255, 255, 100) if is_hovered else (0, 0, 0, 50)
+        pygame.draw.rect(screen, border_color, button['rect'], 2, border_radius=6)
+        
+        # Texto centrado
+        text_rect = button['text'].get_rect(center=button['rect'].center)
+        screen.blit(button['text'], text_rect)
     
-    # Cambiar de modo
-    button_text = font.render("Cambiar Modo", True, color_mode[0])
-    screen.blit(button_text, (60, 390))
+    # Información de estado 
+    status_y = 480
+    font_section = pygame.font.SysFont('Arial', 20, bold=True)
+    section_title = font_section.render("ESTADO", True, (60, 70, 80))
+    screen.blit(section_title, (30, status_y))
     
-    return mode_button
+    # Estado del modo con indicador visual
+    mode_status = "LISSAJOUS" if mode else "MANUAL"
+    mode_color = (46, 125, 50) if mode else (211, 47, 47)
+    
+    font_status = pygame.font.SysFont('Arial', 18, bold=True)
+    mode_text = font_status.render(f"MODO: {mode_status}", True, mode_color)
+    screen.blit(mode_text, (30, status_y + 25))
+    
+    # Valores actuales en una caja
+    values_rect = pygame.Rect(25, status_y + 50, 330, 100)
+    pygame.draw.rect(screen, (240, 245, 250), values_rect, border_radius=6)
+    pygame.draw.rect(screen, (200, 210, 220), values_rect, 1, border_radius=6)
+    
+    font_values = pygame.font.SysFont('Arial', 14)
+    values_text = [
+        f"Aceleración: {V_acc:.0f} V",
+        f"Vertical: {V_vert:.1f} V",
+        f"Horizontal: {V_horiz:.1f} V",
+        f"Persistencia: {persistence:.1f} s"
+    ]
+    
+    for i, text in enumerate(values_text):
+        value = font_values.render(text, True, (60, 70, 80))
+        screen.blit(value, (35, status_y + 65 + i * 20))
+    
 
-def handle_ui_events(event, mode_button):
+
+def draw_voltage_displays(screen, V_vert, V_horiz):
+    """Dibuja displays de voltaje para las vistas con mejor diseño."""
+    font = pygame.font.SysFont('Arial', 20, bold=True)
+    small_font = pygame.font.SysFont('Arial', 14, bold=True)
+    
+    # Posiciones ajustadas para las vistas
+    displays = [
+        {"rect": pygame.Rect(480, 310, 200, 55), "title": "Vista Lateral", "value": V_vert, "color": (46, 125, 50)},
+        {"rect": pygame.Rect(880, 310, 200, 55), "title": "Vista Superior", "value": V_horiz, "color": (255, 152, 0)}
+    ]
+    
+    for display in displays:
+        rect = display["rect"]
+        
+        # Sombra
+        shadow_rect = pygame.Rect(rect.x + 2, rect.y + 2, rect.width, rect.height)
+        pygame.draw.rect(screen, (0, 0, 0, 30), shadow_rect, border_radius=8)
+        
+        # Fondo del display
+        pygame.draw.rect(screen, (245, 248, 252), rect, border_radius=8)
+        pygame.draw.rect(screen, display["color"], rect, 3, border_radius=8)
+        
+        # Tí­tulo
+        title = small_font.render(display["title"], True, (60, 70, 80))
+        title_rect = title.get_rect(centerx=rect.centerx, y=rect.y + 8)
+        screen.blit(title, title_rect)
+        
+        # Valor
+        value_text = f"{display['value']:.1f} V"
+        value = font.render(value_text, True, display["color"])
+        value_rect = value.get_rect(centerx=rect.centerx, y=rect.y + 26)
+        screen.blit(value, value_rect)
+
+def draw_view_labels(screen):
+    """Dibuja etiquetas mejoradas para las vistas."""
+    font = pygame.font.SysFont('Arial', 16, bold=True)
+    
+    # Etiquetas con fondo
+    labels = [
+        {"text": "Vista Lateral", "pos": (470, 25), "color": (46, 125, 50)},
+        {"text": "Vista Superior", "pos": (720, 25), "color": (255, 152, 0)},
+        {"text": "Pantalla del CRT", "pos": (560, 420), "color": (65, 105, 225)}
+    ]
+    
+    for label in labels:
+        text = font.render(label["text"], True, label["color"])
+        
+        # Fondo semi-transparente
+        bg_rect = pygame.Rect(label["pos"][0] - 5, label["pos"][1] - 2, 
+                             text.get_width() + 10, text.get_height() + 4)
+        pygame.draw.rect(screen, (255, 255, 255, 200), bg_rect, border_radius=4)
+        pygame.draw.rect(screen, label["color"], bg_rect, 2, border_radius=4)
+        
+        screen.blit(text, label["pos"])
+
+def handle_ui_events(event):
     """Maneja los eventos de la interfaz de usuario."""
     global V_acc, V_vert, V_horiz, persistence, freq_v, freq_h, mode
- 
+    
     for slider in sliders:
         if slider.handle_event(event):
-            # Actualizar variables globales según el slider
-            slider_name = slider.label.split(":")[0].lower().replace(" ", "_")
+            slider_name = slider.title.split(":")[0].lower().replace(" ", "_")
             if slider_name == "v_aceleración":
                 V_acc = slider.value
             elif slider_name == "v_vertical":
@@ -61,17 +194,32 @@ def handle_ui_events(event, mode_button):
             elif slider_name == "frecuencia_horizontal":
                 freq_h = slider.value
     
-    # Cambiar modo si se hace clic en el botón
     if event.type == MOUSEBUTTONDOWN and event.button == 1:
-        if mode_button.collidepoint(event.pos):
-            global mode
-            mode = not mode
-            return
+        for button in buttons:
+            if button['rect'].collidepoint(event.pos):
+                if button['id'] == 'mode':
+                    mode = not mode
+                    # Actualizar texto del botón con tamaÃ±o correcto
+                    font_btn = pygame.font.SysFont('Arial', 16, bold=True)
+                    button_text = "Modo Manual" if mode else "Modo Lissajous"
+                    button['text'] = font_btn.render(button_text, True, (255, 255, 255))
+                    
+                    # Actualizar estado de sliders según el modo
+                    for slider in sliders:
+                        if slider.title.startswith(("V Vertical", "V Horizontal")):
+                            slider.set_disabled(mode)
+                elif button['id'] == 'reset':
+                    visualizer.clear_screen_persistence()
+                return True
     
-    return None
+    if event.type == KEYDOWN and event.key == K_SPACE:
+        global paused
+        paused = not paused
+    
+    return False
 
 def main():
-    global V_acc, V_vert, V_horiz, persistence, mode, freq_v, freq_h, sliders
+    global V_acc, V_vert, V_horiz, persistence, mode, freq_v, freq_h, sliders, buttons, visualizer, paused
 
     # Inicializar pygame
     pygame.init()
@@ -81,68 +229,119 @@ def main():
     # Inicializar visualizador CRT
     visualizer = CRTVisualizer()
     
-    # Configurar colores
-    color_mode = [(0, 0, 0), (0, 120, 255)]
+    # Ajustar las posiciones de las vistas
+    visualizer.lateral_view = pygame.Rect(400, 50, 340, 230)  
+    visualizer.top_view = pygame.Rect(800, 50, 340, 230)       
+    visualizer.screen_view = pygame.Rect(650, 420, 250, 250)  
     
-    # Crear sliders
+    # Crear sliders con mejor espaciado para evitar superposición
     sliders.clear()
-    sliders.append(Slider(50, 80, 500, 40, 500, 2000, V_acc, title="V Aceleración", unit="V", toggle=mode))
-    sliders.append(Slider(50, 150, 500, 40, -1000, 1000, V_vert, title="V Vertical", unit="V", toggle=mode))
-    sliders.append(Slider(50, 220, 500, 40, -1000, 1000, V_horiz, title="V Horizontal", unit="V", toggle=mode))
-    sliders.append(Slider(700, 80, 400, 40, 0.1, 5.0, persistence, title="Persistencia", unit="s", toggle=mode))
-    sliders.append(Slider(700, 150, 400, 40, 0.1, 10.0, freq_v, title="Frecuencia Vertical", unit="Hz", toggle=mode))
-    sliders.append(Slider(700, 220, 400, 40, 0.1, 10.0, freq_h, title="Frecuencia Horizontal", unit="Hz", toggle=mode))
+    y_start = 85
+    spacing = 44 
+    
+    sliders.append(Slider(30, y_start, 310, 15, 500, 2000, V_acc, title="V Aceleración", unit="V"))
+    sliders.append(Slider(30, y_start + spacing, 310, 15, -1000, 1000, V_vert, title="V Vertical", unit="V"))
+    sliders.append(Slider(30, y_start + spacing*2, 310, 15, -1000, 1000, V_horiz, title="V Horizontal", unit="V"))
+    sliders.append(Slider(30, y_start + spacing*3, 310, 15, 0.1, 5.0, persistence, title="Persistencia", unit="s"))
+    sliders.append(Slider(30, y_start + spacing*4, 310, 15, 0.1, 10.0, freq_v, title="Frecuencia Vertical", unit="Hz"))
+    sliders.append(Slider(30, y_start + spacing*5, 310, 15, 0.1, 10.0, freq_h, title="Frecuencia Horizontal", unit="Hz"))
+    
+    # Crear botones
+    buttons.clear()
+    font_btn = pygame.font.SysFont('Arial', 16, bold=True)
+    
+    button_text = "Modo Lissajous" if not mode else "Modo Manual"
+    buttons.append({
+        'id': 'mode',
+        'rect': pygame.Rect(30, 420, 140, 38),  # Movido mÃ¡s abajo
+        'text': font_btn.render(button_text, True, (255, 255, 255))
+    })
+    
+    buttons.append({
+        'id': 'reset',
+        'rect': pygame.Rect(180, 420, 140, 38),
+        'text': font_btn.render("Reset Pantalla", True, (255, 255, 255))
+    })
     
     clock = pygame.time.Clock()
     running = True
+    paused = False
     
     # Para el modo Lissajous
     lissajous_time = 0
     
+    simulation_time = 0
+    
     while running:
-        screen.fill((255, 255, 255))
+        # Fondo con gradiente simulado
+        screen.fill((235, 240, 245))
         
-        # Dibujar UI y obtener el botón de modo
-        mode_button = draw_ui(screen, color_mode)
+        # Dibujar etiquetas de las vistas
+        draw_view_labels(screen)
+        
+        # Dibujar las vistas del CRT
+        mode_text = "Lissajous" if mode else "Manual"
+        visualizer.draw_all_views(screen, V_acc, V_vert, V_horiz, persistence, mode_text)
+        
+        # Dibujar displays de voltaje
+        draw_voltage_displays(screen, V_vert, V_horiz)
+        
+        # Dibujar la interfaz de usuario
+        draw_ui(screen)
         
         # Manejar eventos
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            handle_ui_events(event, mode_button)
+            handle_ui_events(event)
         
         # Actualizar estado de los sliders según el modo
         for slider in sliders:
-            slider.set_disabled(mode)
+            if slider.title.startswith(("V Vertical", "V Horizontal")):
+                slider.set_disabled(mode)
         
         # Actualizar simulación según el modo
-        if mode:  # Modo Lissajous
-            # Actualizar tiempo para animación
-            lissajous_time += 0.016  # Aproximadamente 60 FPS
-            
-            # Generar voltajes sinusoidales
-            V_vert, V_horiz = visualizer.generate_lissajous_point(
-                lissajous_time, freq_v, freq_h
-            )
-            
-            # Calcular posición en pantalla
-            x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz)
-            
-            # Añadir punto a la pantalla
-            visualizer.add_screen_point(x_pos, y_pos, brightness=0.8)
-        else:  # Modo manual
-            # Calcular posición en pantalla basada en voltajes manuales
-            x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz)
-            
-            # En modo manual, mostrar solo el punto actual
-            visualizer.clear_screen_persistence()
-            visualizer.add_screen_point(x_pos, y_pos, brightness=1.0)
+        simulation_time += 0.016 if not paused else 0
+        if not paused:
+            if mode:  # Modo Lissajous
+                lissajous_time += 0.016
+                V_vert, V_horiz = visualizer.generate_lissajous_point(
+                    lissajous_time, freq_v, freq_h
+                )
+                
+                # Actualizar valores de sliders
+                for slider in sliders:
+                    if slider.title == "V Vertical":
+                        slider.value = V_vert
+                    elif slider.title == "V Horizontal":
+                        slider.value = V_horiz
+                
+                # Usar simulation_time en lugar de lissajous_time
+                x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz, simulation_time)
+                visualizer.add_screen_point(x_pos, y_pos, brightness=0.8)
+            else:  # Modo manual
+                if not hasattr(visualizer, 'manual_time'):
+                    visualizer.manual_time = 0
+                visualizer.manual_time += 0.016
+                    
+                x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz, visualizer.manual_time)
+                # NO limpiar la persistencia aquí, solo añadir el punto
+                visualizer.add_screen_point(x_pos, y_pos, brightness=1.0)
         
-        # Dibujar todas las vistas del CRT
-        mode_text = "Lissajous" if mode else "Manual"
-        visualizer.draw_all_views(screen, V_acc, V_vert, V_horiz, persistence, mode_text)
+        # Indicador de pausa mejorado y reposicionado
+        if paused:
+            font = pygame.font.SysFont('Arial', 28, bold=True)
+            pause_text = font.render("PAUSADO", True, (211, 47, 47))
+            
+            # Fondo semi-transparente para el texto
+            text_rect = pause_text.get_rect(center=(600, 25))
+            bg_rect = pygame.Rect(text_rect.x - 8, text_rect.y - 4, 
+                                text_rect.width + 16, text_rect.height + 8)
+            pygame.draw.rect(screen, (255, 255, 255, 200), bg_rect, border_radius=6)
+            pygame.draw.rect(screen, (211, 47, 47), bg_rect, 2, border_radius=6)
+            
+            screen.blit(pause_text, text_rect)
         
-        # Actualizar pantalla
         pygame.display.flip()
         clock.tick(60)
     

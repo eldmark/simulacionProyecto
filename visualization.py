@@ -2,6 +2,7 @@ import pygame
 import math
 from collections import deque
 import time
+from calculos import get_position_by_time
 
 class CRTVisualizer:
     def __init__(self, screen_width=1200, screen_height=720):
@@ -174,8 +175,8 @@ class CRTVisualizer:
         view_rect = self.screen_view
 
         # Fondo negro de la pantalla del CRT
-        pygame.draw.rect(surface, (0, 0, 0), view_rect)
-        pygame.draw.rect(surface, self.colors['border'], view_rect, 3)
+        pygame.draw.rect(surface, (0, 0, 0), view_rect, border_radius= 15)
+        pygame.draw.rect(surface, self.colors['border'], view_rect, 3, border_radius=15)
 
         # Título
         title = self.title_font.render("Pantalla del CRT", True, self.colors['text'])
@@ -288,16 +289,25 @@ class CRTVisualizer:
 
     def calculate_electron_position(self, V_acc, V_vert, V_horiz, t=0):
         """
-        Calcula la posición del electrón basado en los voltajes.
-        Esta es la función que utiliza todos los cálculos que tiene que hacer Julián.
-        De momento la deje simulada con un comportamiento básico preestablecido.
+        Calcula la posición del electrón basado en los voltajes usando los cálculos físicos reales.
         """
+        # Obtener la posición usando los cálculos físicos
+        # Usar los nombres correctos de parámetros que espera calculos.py
+        result = get_position_by_time(V_acc, V_vert, V_horiz, t)
         
-        # Simulación básica de deflexión
-        x_deflection = (V_horiz / 1000) * 0.3 + 0.5  # Normalizado 0-1
-        y_deflection = -(V_vert / 1000) * 0.3 + 0.5  # Normalizado 0-1, invertido
+        lateral_pos = result["lateral_view"]
+        superior_pos = result["superior_view"]
         
-        return x_deflection, y_deflection
+        max_deflection_x = 0.1
+        max_deflection_y = 0.1
+        
+        x_normalized = 0.5 + (superior_pos[1] / (2 * max_deflection_x))
+        y_normalized = 0.5 + (lateral_pos[1] / (2 * max_deflection_y))
+        
+        x_normalized = max(0, min(1, x_normalized))
+        y_normalized = max(0, min(1, y_normalized))
+        
+        return x_normalized, y_normalized
 
     def generate_lissajous_point(self, t, freq_v, freq_h, phase_v=0, phase_h=0, amplitude=500):
         """
