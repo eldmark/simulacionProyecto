@@ -22,13 +22,15 @@ class CRTVisualizer:
         self.distance_vert_to_horiz_plates = 0.03  # 3 cm
         self.distance_plates_to_screen = 0.15  # 15 cm
         
-        # Variables para la simulación
-        self.electron_trail = deque(maxlen=100)  # Trail del electrón
-        self.screen_persistence = deque(maxlen=1000)  # Puntos persistentes en pantalla
-        self.current_electron_pos = [0, 0, 0]  # x, y, z del electrón
-        self.electron_velocity = [0, 0, 0]  # vx, vy, vz
+        # FIXED: Separate collections for different modes
+        self.electron_trail = deque(maxlen=100)
+        self.screen_persistence = deque(maxlen=2000)  # Manual mode points (green)
+        self.lissajous_points = deque(maxlen=10000)   # Lissajous mode points (yellow)
+        self.current_electron_pos = [0, 0, 0]
+        self.electron_velocity = [0, 0, 0]
+        self.current_mode = "manual"
         
-        # Colores
+        # FIXED: Improved colors for better visibility
         self.colors = {
             'background': (240, 240, 240),
             'crt_body': (100, 100, 100),
@@ -36,6 +38,10 @@ class CRTVisualizer:
             'electron_trail': (0, 255, 0),
             'electron': (255, 255, 0),
             'screen_glow': (0, 255, 100),
+            'lissajous_points': (255, 255, 0),  # Bright yellow
+            'lissajous_glow': (255, 255, 150),  # Light yellow for glow
+            'manual_points': (0, 255, 0),       # Bright green
+            'manual_glow': (100, 255, 100),     # Light green for glow
             'text': (0, 0, 0),
             'border': (50, 50, 50)
         }
@@ -45,11 +51,21 @@ class CRTVisualizer:
         self.font = pygame.font.SysFont('Arial', 16)
         self.title_font = pygame.font.SysFont('Arial', 18, bold=True)
 
+    def set_mode(self, mode):
+        """FIXED: Properly set mode and handle transitions"""
+        new_mode = mode.lower()
+        
+        # Only clear points if mode actually changed
+        if hasattr(self, 'current_mode') and self.current_mode != new_mode:
+            if new_mode == "lissajous":
+                self.screen_persistence.clear()  # Clear manual points
+            else:
+                self.lissajous_points.clear()    # Clear lissajous points
+        
+        self.current_mode = new_mode
+
     def draw_lateral_view(self, surface, V_acc=1000, V_vert=0):
-        """
-        Dibuja la vista lateral del CRT (muestra deflexión vertical)
-        CORREGIDO: Placas verticales en la posición física correcta
-        """
+        """Dibuja la vista lateral del CRT (muestra deflexión vertical)"""
         view_rect = self.lateral_view
         pygame.draw.rect(surface, self.colors['background'], view_rect)
         pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
@@ -63,10 +79,6 @@ class CRTVisualizer:
         pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
         
         # CORREGIDO: Placas de deflexión vertical en la posición física correcta
-        # Las placas verticales van de 5 cm a 10 cm desde el cañón
-        # En una vista de 280 pixels de tubo, esto sería aproximadamente:
-        # 5 cm = 280 * (5/23) ≈ 61 pixels desde el inicio
-        # 10 cm = 280 * (10/23) ≈ 122 pixels desde el inicio
         total_length = 0.23  # 23 cm total (5+5+3+15 cm)
         tube_start_x = view_rect.x + 30
         
@@ -117,10 +129,7 @@ class CRTVisualizer:
                             (int(electron_pos[0]), int(electron_pos[1])), 4)
 
     def draw_top_view(self, surface, V_acc=1000, V_horiz=0):
-        """
-        Dibuja la vista superior del CRT (muestra deflexión horizontal)
-        CORREGIDO: Placas horizontales en la posición física correcta
-        """
+        """Dibuja la vista superior del CRT (muestra deflexión horizontal)"""
         view_rect = self.top_view
         pygame.draw.rect(surface, self.colors['background'], view_rect)
         pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
@@ -134,7 +143,6 @@ class CRTVisualizer:
         pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
         
         # CORREGIDO: Placas de deflexión horizontal en la posición física correcta
-        # Las placas horizontales van de 13 cm a 18 cm desde el cañón (5+5+3 a 5+5+3+5)
         total_length = 0.23  # 23 cm total
         tube_start_x = view_rect.x + 30
         
@@ -187,49 +195,111 @@ class CRTVisualizer:
                             (int(electron_pos[0]), int(electron_pos[1])), 4)
 
     def draw_screen_view(self, surface, persistence_time=1.0):
-        """
-        Dibuja la vista frontal de la pantalla del CRT
-        """
+        """FIXED: Enhanced screen view with better point visibility"""
         view_rect = self.screen_view
 
         # Fondo negro de la pantalla del CRT
-        pygame.draw.rect(surface, (0, 0, 0), view_rect, border_radius= 15)
+        pygame.draw.rect(surface, (0, 0, 0), view_rect, border_radius=15)
         pygame.draw.rect(surface, self.colors['border'], view_rect, 3, border_radius=15)
 
-        # Título
-        title = self.title_font.render("Pantalla del CRT", True, self.colors['text'])
+        # Título con indicador del modo
+        mode_indicator = f"({self.current_mode.upper()})"
+        title_text = f"Pantalla del CRT {mode_indicator}"
+        title = self.title_font.render(title_text, True, self.colors['text'])
         surface.blit(title, (view_rect.x, view_rect.y - 25))
 
-        # Limpiar puntos antiguos basado en el tiempo de persistencia
         current_time = time.time()
-        self.screen_persistence = deque([
-            (pos, timestamp, brightness) for pos, timestamp, brightness in self.screen_persistence
-            if current_time - timestamp < persistence_time
-        ], maxlen=1000)
 
-        # Dibujar puntos persistentes con fade-out
-        for pos, timestamp, brightness in self.screen_persistence:
-            age = current_time - timestamp
-            fade_factor = max(0, 1 - (age / persistence_time))
-            
-            # Color con fade
-            color_intensity = int(brightness * fade_factor * 255)
-            color = (0, color_intensity, 0)  # Verde fosforescente
-            
-            screen_x = view_rect.x + int(pos[0] * view_rect.width)
-            screen_y = view_rect.y + int(pos[1] * view_rect.height)
-            
-            # Dibujar punto con glow effect
-            if color_intensity > 0:
-                pygame.draw.circle(surface, color, (screen_x, screen_y), 2)
-                # Efecto de brillo
-                glow_color = (0, color_intensity // 3, 0)
-                pygame.draw.circle(surface, glow_color, (screen_x, screen_y), 4)
+        # FIXED: Better Lissajous rendering
+        if self.current_mode == "lissajous":
+            # Draw all lissajous points (they are persistent)
+            points_drawn = 0
+            for pos, timestamp, brightness in self.lissajous_points:
+                screen_x = view_rect.x + int(pos[0] * view_rect.width)
+                screen_y = view_rect.y + int(pos[1] * view_rect.height)
+                
+                # Ensure coordinates are within screen bounds
+                if (view_rect.x <= screen_x < view_rect.right and 
+                    view_rect.y <= screen_y < view_rect.bottom):
+                    
+                    # Bright yellow points for Lissajous
+                    color_intensity = min(255, int(brightness * 255))
+                    point_color = (color_intensity, color_intensity, 0)  # Yellow
+                    glow_color = (color_intensity // 3, color_intensity // 3, 0)  # Dimmer yellow
+                    
+                    # Draw glow effect first (larger, dimmer)
+                    pygame.draw.circle(surface, glow_color, (screen_x, screen_y), 3)
+                    # Draw bright center point
+                    pygame.draw.circle(surface, point_color, (screen_x, screen_y), 1)
+                    points_drawn += 1
+
+        else:  # Manual mode
+            # Clean up old points based on persistence time
+            self.screen_persistence = deque([
+                (pos, timestamp, brightness) for pos, timestamp, brightness in self.screen_persistence
+                if current_time - timestamp < persistence_time
+            ], maxlen=2000)
+
+            # Draw manual mode points with fade
+            points_drawn = 0
+            for pos, timestamp, brightness in self.screen_persistence:
+                age = current_time - timestamp
+                fade_factor = max(0, 1 - (age / persistence_time))
+                
+                screen_x = view_rect.x + int(pos[0] * view_rect.width)
+                screen_y = view_rect.y + int(pos[1] * view_rect.height)
+                
+                # Ensure coordinates are within screen bounds
+                if (view_rect.x <= screen_x < view_rect.right and 
+                    view_rect.y <= screen_y < view_rect.bottom):
+                    
+                    # Green color with fade
+                    color_intensity = min(255, int(brightness * fade_factor * 255))
+                    if color_intensity > 10:  # Only draw visible points
+                        point_color = (0, color_intensity, 0)  # Green
+                        glow_color = (0, color_intensity // 4, 0)  # Dimmer green
+                        
+                        # Draw glow effect first (larger, dimmer)
+                        pygame.draw.circle(surface, glow_color, (screen_x, screen_y), 4)
+                        # Draw bright center point
+                        pygame.draw.circle(surface, point_color, (screen_x, screen_y), 2)
+                        points_drawn += 1
+
+        # Show point count and mode info
+        info_color = self.colors['lissajous_points'] if self.current_mode == "lissajous" else self.colors['manual_points']
+        count_text = f"Puntos: {len(self.lissajous_points) if self.current_mode == 'lissajous' else len(self.screen_persistence)}"
+        count_surface = pygame.font.SysFont('Arial', 12).render(count_text, True, info_color)
+        surface.blit(count_surface, (view_rect.x + 5, view_rect.y + 5))
+
+    def add_screen_point(self, normalized_x, normalized_y, brightness=1.0, mode="manual"):
+        """FIXED: Enhanced point addition with better coordinate handling"""
+        # Clamp coordinates to valid range
+        normalized_x = max(0.0, min(1.0, normalized_x))
+        normalized_y = max(0.0, min(1.0, normalized_y))
+        
+        current_time = time.time()
+        point_data = ((normalized_x, normalized_y), current_time, brightness)
+        
+        # Add to appropriate collection
+        if mode.lower() == "lissajous" or self.current_mode == "lissajous":
+            self.lissajous_points.append(point_data)
+        else:
+            self.screen_persistence.append(point_data)
+
+    def clear_screen_persistence(self):
+        """Clear points for current mode"""
+        if self.current_mode == "lissajous":
+            self.lissajous_points.clear()
+        else:
+            self.screen_persistence.clear()
+
+    def clear_all_points(self):
+        """Clear ALL points from both modes"""
+        self.screen_persistence.clear()
+        self.lissajous_points.clear()
 
     def draw_coordinate_system(self, surface, view_rect, title):
-        """
-        Dibuja un sistema de coordenadas para las vistas
-        """
+        """Dibuja un sistema de coordenadas para las vistas"""
         # Ejes
         center_x = view_rect.centerx
         center_y = view_rect.centery
@@ -242,21 +312,6 @@ class CRTVisualizer:
         pygame.draw.line(surface, (100, 100, 100), 
                         (center_x, view_rect.y + 30), 
                         (center_x, view_rect.bottom - 20), 1)
-
-    def add_screen_point(self, normalized_x, normalized_y, brightness=1.0):
-        """
-        Añade un punto a la pantalla con coordenadas normalizadas (0-1)
-        """
-        # Asegurar que las coordenadas estén en el rango válido
-        normalized_x = max(0, min(1, normalized_x))
-        normalized_y = max(0, min(1, normalized_y))
-        
-        current_time = time.time()
-        self.screen_persistence.append(((normalized_x, normalized_y), current_time, brightness))
-
-    def clear_screen_persistence(self):
-        """Limpia todos los puntos persistentes de la pantalla"""
-        self.screen_persistence.clear()
 
     def draw_info_panel(self, surface, V_acc, V_vert, V_horiz, mode_text="Manual"):
         """Dibuja panel de información con valores actuales"""
@@ -276,26 +331,28 @@ class CRTVisualizer:
 
     def draw_all_views(self, surface, V_acc=1000, V_vert=0, V_horiz=0, 
                         persistence_time=1.0, mode_text="Manual"):
-        """
-        Función principal que dibuja todas las vistas del CRT
-        """
-        # Limpiar fondo
+        """FIXED: Main drawing function with proper mode handling"""
+        # Update mode
+        self.set_mode(mode_text)
+        
+        # Clear background
         surface.fill((255, 255, 255))
         
-        # Dibujar las tres vistas
+        # Draw all three views
         self.draw_lateral_view(surface, V_acc, V_vert)
         self.draw_top_view(surface, V_acc, V_horiz)
         self.draw_screen_view(surface, persistence_time)
         
-        # Panel de información
+        # Info panel
         self.draw_info_panel(surface, V_acc, V_vert, V_horiz, mode_text)
         
-        # Instrucciones para el usuario
+        # UPDATED instructions
         instructions = [
             "Controles:",
             "- Ajustar voltajes con sliders",
             "- Cambiar modo para Lissajous",
-            "- Tiempo de persistencia"
+            "- Modo Lissajous: Puntos AMARILLOS permanentes", 
+            "- Modo Manual: Puntos VERDES con fade"
         ]
         
         for i, instruction in enumerate(instructions):
@@ -303,71 +360,50 @@ class CRTVisualizer:
             surface.blit(text, (50, 450 + i * 20))
 
     def calculate_electron_position(self, V_acc, V_vert, V_horiz, t=0):
-        """
-        Calcula la posición del electrón basado en los voltajes usando los cálculos físicos reales.
-        """
-        # Obtener la posición usando los cálculos físicos
-        # Usar los nombres correctos de parámetros que espera calculos.py
-        result = get_position_by_time(V_acc, V_vert, V_horiz, t)
-        
-        lateral_pos = result["lateral_view"]
-        superior_pos = result["superior_view"]
-        
-        max_deflection_x = 0.1
-        max_deflection_y = 0.1
-        
-        x_normalized = 0.5 + (superior_pos[1] / (2 * max_deflection_x))
-        y_normalized = 0.5 + (lateral_pos[1] / (2 * max_deflection_y))
-        
-        x_normalized = max(0, min(1, x_normalized))
-        y_normalized = max(0, min(1, y_normalized))
-        
-        return x_normalized, y_normalized
-
-    def generate_lissajous_point(self, t, freq_v, freq_h, phase_v=0, phase_h=0, amplitude=500):
-        """
-        Genera un punto de las Figuras de Lissajous
-        """
-        # Señales sinusoidales para las placas
-        V_vert = amplitude * math.sin(2 * math.pi * freq_v * t + phase_v)
-        V_horiz = amplitude * math.sin(2 * math.pi * freq_h * t + phase_h)
-        
-        return V_vert, V_horiz
-
-    def update_lissajous_animation(self, freq_v, freq_h, phase_v=0, phase_h=0, dt=0.016):
-        """
-        Actualiza la animación de las Figuras de Lissajous
-        """
-        if not hasattr(self, 'lissajous_time'):
-            self.lissajous_time = 0
-        
-        self.lissajous_time += dt
-        
-        # Generar voltajes sinusoidales
-        V_vert, V_horiz = self.generate_lissajous_point(
-            self.lissajous_time, freq_v, freq_h, phase_v, phase_h
-        )
-        
-        # Calcular posición en pantalla
-        x_pos, y_pos = self.calculate_electron_position(1000, V_vert, V_horiz)
-        
-        # Añadir punto a la pantalla
-        self.add_screen_point(x_pos, y_pos, brightness=0.8)
-        
-        return V_vert, V_horiz
-
-    def simulate_manual_mode(self, V_acc, V_vert, V_horiz):
-        """
-        Simula el modo manual donde el usuario controla directamente los voltajes
-        """
-        x_pos, y_pos = self.calculate_electron_position(V_acc, V_vert, V_horiz)
-        
-        # En modo manual, solo mostrar el punto actual
-        self.clear_screen_persistence()
-        self.add_screen_point(x_pos, y_pos, brightness=1.0)
-
-    def simulate_lissajous_mode(self, freq_v, freq_h, phase_v=0, phase_h=0):
-        """
-        Simula el modo Lissajous con señales sinusoidales
-        """
-        return self.update_lissajous_animation(freq_v, freq_h, phase_v, phase_h)
+        """MEJORADO: Cálculo de posición que responde correctamente a voltajes"""
+        try:
+            # NUEVO: Mapeo directo y más intuitivo de voltajes a posición
+            # Para modo manual, usar mapeo directo sin física compleja
+            if self.current_mode == "manual":
+                # Mapear voltajes directamente a posición de pantalla
+                # V_horiz controla movimiento horizontal (X)
+                # V_vert controla movimiento vertical (Y)
+                
+                max_voltage = 1000.0  # Voltaje máximo según sliders
+                
+                # Convertir voltaje a posición normalizada (0 a 1)
+                # Voltaje 0 = centro (0.5), voltaje positivo = derecha/arriba, voltaje negativo = izquierda/abajo
+                x_normalized = 0.5 + (V_horiz / (2 * max_voltage))  # Horizontal
+                y_normalized = 0.5 - (V_vert / (2 * max_voltage))   # Vertical (invertido para que + sea arriba)
+                
+                # Asegurar que esté en rango válido
+                x_normalized = max(0.0, min(1.0, x_normalized))
+                y_normalized = max(0.0, min(1.0, y_normalized))
+                
+                return x_normalized, y_normalized
+            
+            else:  # Modo Lissajous - usar cálculos físicos
+                # Use physics calculations for Lissajous mode
+                result = get_position_by_time(V_acc, V_vert, V_horiz, t)
+                
+                lateral_pos = result["lateral_view"]
+                superior_pos = result["superior_view"]
+                
+                # Scale deflections appropriately for Lissajous
+                max_deflection_x = 0.12
+                max_deflection_y = 0.12
+                
+                # Convert to normalized screen coordinates (0 to 1)
+                x_normalized = 0.5 + (superior_pos[1] / (2 * max_deflection_x))
+                y_normalized = 0.5 + (lateral_pos[1] / (2 * max_deflection_y))
+                
+                # Clamp to screen bounds
+                x_normalized = max(0.0, min(1.0, x_normalized))
+                y_normalized = max(0.0, min(1.0, y_normalized))
+                
+                return x_normalized, y_normalized
+            
+        except Exception as e:
+            # Fallback to center if calculation fails
+            print(f"Position calculation error: {e}")
+            return 0.5, 0.5
