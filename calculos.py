@@ -126,3 +126,14 @@ def get_superior_view_position(plates_voltage, ini_speed_val, time, region_times
         time_after_hplates = time - region_times["end_hplates"]
         final_movement = movement_bplates + (exit_speed * time_after_hplates)
         return (depth, final_movement)
+
+
+def sinusoidal_signal(time, freq, amplitude, fase):
+    return amplitude * n.sin(2 * n.pi * freq * time + fase)
+
+def lissajous_position_by_time(e_accel, h_freq, v_freq, time, amplitude, fase):
+    v_voltage = sinusoidal_signal(time, v_freq, amplitude, fase)
+    h_voltage = sinusoidal_signal(time, h_freq, amplitude, fase)
+
+    return get_position_by_time(e_accel, v_voltage, h_voltage, time)
+
