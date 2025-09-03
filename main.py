@@ -190,7 +190,7 @@ def reset_values():
     phase_h = 0
     mode = False
     
-    # Actualizar sliders a los valores por defecto
+    # Actualizar sliders
     for slider in sliders:
         if "Aceleración" in slider.title:
             slider.value = V_acc
@@ -200,62 +200,83 @@ def reset_values():
             slider.value = V_horiz
         elif "Persistencia" in slider.title:
             slider.value = persistence
+        elif "Frecuencia Vertical" in slider.title:
+            slider.value = freq_v
+        elif "Frecuencia Horizontal" in slider.title:
+            slider.value = freq_h
     
-    # Actualizar texto del botón de modo
+    # Actualizar botón de modo
     font_btn = pygame.font.SysFont('Arial', 16, bold=True)
     for button in buttons:
         if button['id'] == 'mode':
             button_text = "Modo Lissajous" if not mode else "Modo Manual"
             button['text'] = font_btn.render(button_text, True, (255, 255, 255))
     
-    # Limpiar pantalla del visualizador
-    visualizer.clear_screen_persistence()
-    
-    # Resetear tiempos de simulación
+    # Resetear tiempos y limpiar pantalla
     if hasattr(visualizer, 'manual_time'):
         visualizer.manual_time = 0
     if hasattr(visualizer, 'lissajous_time'):
         visualizer.lissajous_time = 0
+    visualizer.clear_screen_persistence()
 
 def handle_ui_events(event):
     """Maneja los eventos de la interfaz de usuario."""
     global V_acc, V_vert, V_horiz, persistence, freq_v, freq_h, mode
     
+    slider_changed = False
+    
     for slider in sliders:
         if slider.handle_event(event):
-            slider_name = slider.title.split(":")[0].lower().replace(" ", "_")
-            if slider_name == "v_aceleración":
+            slider_changed = True
+            if "Aceleración" in slider.title:
                 V_acc = slider.value
-            elif slider_name == "v_vertical":
+            elif "Vertical" in slider.title:
                 V_vert = slider.value
-            elif slider_name == "v_horizontal":
+            elif "Horizontal" in slider.title:
                 V_horiz = slider.value
-            elif slider_name == "persistencia":
+            elif "Persistencia" in slider.title:
                 persistence = slider.value
+            elif "Frecuencia Vertical" in slider.title:
+                freq_v = slider.value
+            elif "Frecuencia Horizontal" in slider.title:
+                freq_h = slider.value
+    
+    # Forzar reset del tiempo manual si se movió un slider relevante
+    if slider_changed and not mode:
+        if hasattr(visualizer, 'manual_time'):
+            visualizer.manual_time = 0
     
     if event.type == MOUSEBUTTONDOWN and event.button == 1:
         for button in buttons:
             if button['rect'].collidepoint(event.pos):
                 if button['id'] == 'mode':
                     mode = not mode
-                    # Actualizar texto del botón
                     font_btn = pygame.font.SysFont('Arial', 16, bold=True)
                     button_text = "Modo Manual" if mode else "Modo Lissajous"
                     button['text'] = font_btn.render(button_text, True, (255, 255, 255))
                     
-                    # Actualizar estado de sliders según el modo
                     for slider in sliders:
-                        if slider.title.startswith(("V Vertical", "V Horizontal")):
+                        if "Vertical" in slider.title or "Horizontal" in slider.title:
                             slider.set_disabled(mode)
-                            
+                    
+                    # Resetear tiempos al cambiar modo
+                    if hasattr(visualizer, 'manual_time'):
+                        visualizer.manual_time = 0
+                    if hasattr(visualizer, 'lissajous_time'):
+                        visualizer.lissajous_time = 0
+                    visualizer.clear_screen_persistence()
+                    
                 elif button['id'] == 'reset':
-                    reset_values()  # LLAMAR A LA NUEVA FUNCIÓN
+                    reset_values()
                     
                 return True
     
-    if event.type == KEYDOWN and event.key == K_SPACE:
-        global paused
-        paused = not paused
+    if event.type == KEYDOWN:
+        if event.key == K_SPACE:
+            global paused
+            paused = not paused
+        elif event.key == K_r:
+            reset_values()
     
     return False
 
@@ -270,10 +291,14 @@ def main():
     # Inicializar visualizador CRT
     visualizer = CRTVisualizer()
     
+    # INICIALIZAR TIEMPOS
+    visualizer.manual_time = 0
+    visualizer.lissajous_time = 0
+    
     # Ajustar las posiciones de las vistas
     visualizer.lateral_view = pygame.Rect(400, 50, 340, 230)  
     visualizer.top_view = pygame.Rect(800, 50, 340, 230)       
-    visualizer.screen_view = pygame.Rect(650, 420, 250, 250)  
+    visualizer.screen_view = pygame.Rect(650, 420, 250, 250) 
     
     # Crear sliders con mejor espaciado para evitar superposición
     sliders.clear()
@@ -343,44 +368,43 @@ def main():
                 reset_values()
         
         # Actualizar estado de los sliders según el modo
-        for slider in sliders:
-            if "Aceleración" in slider.title:
-                V_acc = slider.value
-            elif "Vertical" in slider.title:
-                V_vert = slider.value
-            elif "Horizontal" in slider.title:
-                V_horiz = slider.value
-            elif "Persistencia" in slider.title:
-                persistence = slider.value
-        
-        # Actualizar simulación según el modo
         simulation_time += 0.016 if not paused else 0
         if not paused:
             if mode:  # Modo Lissajous
                 lissajous_time += 0.016
-                V_vert, V_horiz = visualizer.generate_lissajous_point(
+                V_vert_liss, V_horiz_liss = visualizer.generate_lissajous_point(
                     lissajous_time, freq_v, freq_h
                 )
                 
-                # Actualizar valores de sliders
+                # Actualizar también las variables globales para la UI
+                V_vert = V_vert_liss
+                V_horiz = V_horiz_liss
+                
+                # Actualizar visualmente los sliders
                 for slider in sliders:
-                    if slider.title == "V Vertical":
+                    if "Vertical" in slider.title:
                         slider.value = V_vert
-                    elif slider.title == "V Horizontal":
+                    elif "Horizontal" in slider.title:
                         slider.value = V_horiz
                 
-                # Usar simulation_time en lugar de lissajous_time
                 x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz, simulation_time)
                 visualizer.add_screen_point(x_pos, y_pos, brightness=0.8)
+                
             else:  # Modo manual
-                if not hasattr(visualizer, 'manual_time'):
+                # RESETEAR el tiempo cuando se mueven los sliders para ver cambios inmediatos
+                slider_moved = any(slider.dragging for slider in sliders if "Vertical" in slider.title or "Horizontal" in slider.title)
+                
+                if not hasattr(visualizer, 'manual_time') or slider_moved:
                     visualizer.manual_time = 0
-                visualizer.manual_time += 0.016
+                    # Limpiar pantalla para ver el nuevo punto inmediatamente
+                    visualizer.clear_screen_persistence()
+                
+                visualizer.manual_time += 0.016 if not paused else 0
                     
+                # Calcular posición con los valores ACTUALES de los sliders
                 x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz, visualizer.manual_time)
-                    # NO limpiar la persistencia aquí, solo añadir el punto
                 visualizer.add_screen_point(x_pos, y_pos, brightness=1.0)
-        
+                
         # Indicador de pausa mejorado y reposicionado
         if paused:
             font = pygame.font.SysFont('Arial', 28, bold=True)

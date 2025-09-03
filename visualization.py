@@ -87,16 +87,25 @@ class CRTVisualizer:
         start_x = view_rect.x + 50
         start_y = view_rect.y + 110
         
-        # Calcular deflexión aproximada basada en V_vert
-        deflection = (V_vert / 1000) * 30  # Escalado para visualización
+        # Calcular deflexión aproximada basada en V_vert CON LÍMITES
+        max_deflection = 40  # Deflexión máxima en píxeles
+        deflection = (V_vert / 1000) * 30
+        deflection = max(-max_deflection, min(max_deflection, deflection))  # Limitar deflexión
         
-        # Trayectoria en tres segmentos
+        # Trayectoria en tres segmentos CON LÍMITES
         points = [
-            (start_x, start_y),  # Inicio
-            (plate_x, start_y),  # Antes de las placas
-            (plate_x + 40, start_y + deflection),  # Después de las placas
-            (view_rect.x + 320, start_y + deflection * 1.5)  # Hacia la pantalla
+            (start_x, start_y),
+            (plate_x, start_y),
+            (plate_x + 40, start_y + deflection),
+            (view_rect.x + 320, start_y + deflection * 1.5)
         ]
+        
+        # Aplicar límites a cada punto
+        for i in range(len(points)):
+            x, y = points[i]
+            x = max(view_rect.x + 10, min(view_rect.right - 10, x))
+            y = max(view_rect.y + 10, min(view_rect.bottom - 10, y))
+            points[i] = (x, y)
         
         if len(points) > 1:
             pygame.draw.lines(surface, self.colors['electron_trail'], False, points, 2)
@@ -148,16 +157,25 @@ class CRTVisualizer:
         start_x = view_rect.x + 50
         start_y = view_rect.y + 120
         
-        # Calcular deflexión aproximada basada en V_horiz
-        deflection = (V_horiz / 1000) * 25  # Escalado para visualización
+         # Calcular deflexión aproximada basada en V_horiz CON LÍMITES
+        max_deflection = 35  # Deflexión máxima en píxeles
+        deflection = (V_horiz / 1000) * 25
+        deflection = max(-max_deflection, min(max_deflection, deflection))  # Limitar deflexión
         
-        # Trayectoria en tres segmentos
+        # Trayectoria en tres segmentos CON LÍMITES
         points = [
-            (start_x, start_y),  # Inicio
-            (plate_x_left, start_y),  # Antes de las placas
-            (plate_x_right + 8, start_y + deflection),  # Después de las placas
-            (view_rect.x + 320, start_y + deflection * 1.3)  # Hacia la pantalla
+            (start_x, start_y),
+            (plate_x_left, start_y),
+            (plate_x_right + 8, start_y + deflection),
+            (view_rect.x + 320, start_y + deflection * 1.3)
         ]
+        
+        # Aplicar límites a cada punto
+        for i in range(len(points)):
+            x, y = points[i]
+            x = max(view_rect.x + 10, min(view_rect.right - 10, x))
+            y = max(view_rect.y + 10, min(view_rect.bottom - 10, y))
+            points[i] = (x, y)
         
         if len(points) > 1:
             pygame.draw.lines(surface, self.colors['electron_trail'], False, points, 2)
@@ -229,14 +247,16 @@ class CRTVisualizer:
     def add_screen_point(self, normalized_x, normalized_y, brightness=1.0):
         """
         Añade un punto a la pantalla con coordenadas normalizadas (0-1)
+        CON VALIDACIÓN EXTRA de límites.
         """
-
-        # Asegurar que las coordenadas estén en el rango válido
-        normalized_x = max(0, min(1, normalized_x))
-        normalized_y = max(0, min(1, normalized_y))
+        # Validación estricta de coordenadas
+        normalized_x = max(0.0, min(1.0, normalized_x))
+        normalized_y = max(0.0, min(1.0, normalized_y))
         
-        current_time = time.time()
-        self.screen_persistence.append(((normalized_x, normalized_y), current_time, brightness))
+        # Solo añadir punto si está dentro de límites razonables
+        if 0 <= normalized_x <= 1 and 0 <= normalized_y <= 1:
+            current_time = time.time()
+            self.screen_persistence.append(((normalized_x, normalized_y), current_time, brightness))
 
     def clear_screen_persistence(self):
         """Limpia todos los puntos persistentes de la pantalla"""
@@ -290,22 +310,24 @@ class CRTVisualizer:
     def calculate_electron_position(self, V_acc, V_vert, V_horiz, t=0):
         """
         Calcula la posición del electrón basado en los voltajes usando los cálculos físicos reales.
+        CON LÍMITES para que no se salga de la pantalla.
         """
         # Obtener la posición usando los cálculos físicos
-        # Usar los nombres correctos de parámetros que espera calculos.py
         result = get_position_by_time(V_acc, V_vert, V_horiz, t)
         
         lateral_pos = result["lateral_view"]
         superior_pos = result["superior_view"]
         
-        max_deflection_x = 0.1
-        max_deflection_y = 0.1
+        max_deflection_x = 0.1  # Deflexión máxima horizontal en metros
+        max_deflection_y = 0.1  # Deflexión máxima vertical en metros
         
+        # Calcular coordenadas normalizadas con límites
         x_normalized = 0.5 + (superior_pos[1] / (2 * max_deflection_x))
         y_normalized = 0.5 + (lateral_pos[1] / (2 * max_deflection_y))
         
-        x_normalized = max(0, min(1, x_normalized))
-        y_normalized = max(0, min(1, y_normalized))
+        # APLICAR LÍMITES ESTRICTOS (0-1)
+        x_normalized = max(0.0, min(1.0, x_normalized))
+        y_normalized = max(0.0, min(1.0, y_normalized))
         
         return x_normalized, y_normalized
 
