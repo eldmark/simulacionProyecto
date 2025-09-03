@@ -10,20 +10,14 @@ from scipy.constants import electron_mass, e
 
 # Longitud de las placas deflectoras
 lon_plates: Final = 0.05
-# Ancho de las placas deflectoras
-wid_plates: Final = 0.05
-
 
 # Área de las placas deflectoras
-plates_a: Final = lon_plates * wid_plates
+plates_a: Final = lon_plates**2
 # Distancia de separación de las placas
 d_plates: Final = 0.02
-# Distancia desde las placas verticales a las horizontales
-db_plates: Final = 0.03
-# Distancia desde las placas horizontales a la pantalla
+# Distancia desde las placas a la pantalla
 db_plates_screen: Final = 0.15
-# Distancia total desde el cañón a las placas verticales
-db_plates_canyon: Final = 0.05
+
 
 # Electron's initial speed 
 def ini_speed(e_accel):
@@ -41,6 +35,37 @@ def e_field_accel(electric_field_val):
 # Time between plates
 def total_time(ini_speed_val):
     return db_plates_screen / ini_speed_val
+
+def get_position(accel_vol, hplates_V, vplates_V, ini_speed_val):
+    # Tiempo entre placas
+    time = total_time(ini_speed_val)
+
+    time_post_plate = db_plates_screen / ini_speed_val
+
+    #Aceleración horizontal (placas verticales)
+    helectric_field = electric_field(hplates_V)
+    h_acc = e_field_accel(helectric_field)
+
+    # Aceleración vertical (placas horizontales)
+    velectric_field = electric_field(vplates_V)
+    v_acc = e_field_accel(velectric_field)
+    
+    # Velocidad a la que llega el electron
+    ini_speed = ini_speed(accel_vol)
+
+    x_position = (1/2) * h_acc * time**2
+    y_position = (1/2) * v_acc * time**2
+    
+    # PLano ZY (Z es horizontal, Y es vertical)
+    vfy = v_acc * time_post_plate
+    final_y_position = y_position + (vfy *time_post_plate)
+
+    vfx = h_acc * time_post_plate
+    final_x_position = x_position + (vfx *time_post_plate)
+
+    z_position = ini_speed*time
+
+    return (x_position, y_position, z_position)
 
 # Delimits time regions for the electron's trajectory
 def region_time(ini_speed_val):
@@ -136,4 +161,3 @@ def lissajous_position_by_time(e_accel, h_freq, v_freq, time, amplitude, fase):
     h_voltage = sinusoidal_signal(time, h_freq, amplitude, fase)
 
     return get_position_by_time(e_accel, v_voltage, h_voltage, time)
-
