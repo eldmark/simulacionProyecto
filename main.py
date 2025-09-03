@@ -325,7 +325,7 @@ def main():
                 visualizer.manual_time += 0.016
                     
                 x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz, visualizer.manual_time)
-                # NO limpiar la persistencia aquí, solo añadir el punto
+                    # NO limpiar la persistencia aquí, solo añadir el punto
                 visualizer.add_screen_point(x_pos, y_pos, brightness=1.0)
         
         # Indicador de pausa mejorado y reposicionado
