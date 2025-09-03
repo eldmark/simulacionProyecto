@@ -48,8 +48,8 @@ class CRTVisualizer:
     def draw_lateral_view(self, surface, V_acc=1000, V_vert=0):
         """
         Dibuja la vista lateral del CRT (muestra deflexión vertical)
+        CORREGIDO: Placas verticales en la posición física correcta
         """
-
         view_rect = self.lateral_view
         pygame.draw.rect(surface, self.colors['background'], view_rect)
         pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
@@ -62,26 +62,36 @@ class CRTVisualizer:
         tube_rect = pygame.Rect(view_rect.x + 30, view_rect.y + 80, 280, 60)
         pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
         
-        # Dibujar placas de deflexión vertical
+        # CORREGIDO: Placas de deflexión vertical en la posición física correcta
+        # Las placas verticales van de 5 cm a 10 cm desde el cañón
+        # En una vista de 280 pixels de tubo, esto sería aproximadamente:
+        # 5 cm = 280 * (5/23) ≈ 61 pixels desde el inicio
+        # 10 cm = 280 * (10/23) ≈ 122 pixels desde el inicio
+        total_length = 0.23  # 23 cm total (5+5+3+15 cm)
+        tube_start_x = view_rect.x + 30
+        
+        plate_start_x = tube_start_x + int((self.distance_gun_to_vert_plates / total_length) * 280)
+        plate_end_x = plate_start_x + int((0.05 / total_length) * 280)  # 5 cm de longitud de placa
+        
         plate_y_top = view_rect.y + 70
         plate_y_bottom = view_rect.y + 150
-        plate_x = view_rect.x + 200
+        plate_width = plate_end_x - plate_start_x
         
         # Placa superior
         pygame.draw.rect(surface, self.colors['plates'], 
-                        (plate_x, plate_y_top, 40, 8), 0)
+                        (plate_start_x, plate_y_top, plate_width, 8), 0)
         # Placa inferior  
         pygame.draw.rect(surface, self.colors['plates'], 
-                        (plate_x, plate_y_bottom, 40, 8), 0)
+                        (plate_start_x, plate_y_bottom, plate_width, 8), 0)
         
         # Mostrar polaridad de las placas
         polarity_text = "+" if V_vert > 0 else "-" if V_vert < 0 else "0"
-        text_pos = surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
-                                (plate_x + 45, plate_y_top - 5))
+        surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
+                    (plate_end_x + 5, plate_y_top - 5))
         
         polarity_text = "-" if V_vert > 0 else "+" if V_vert < 0 else "0"
         surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
-                    (plate_x + 45, plate_y_bottom + 10))
+                    (plate_end_x + 5, plate_y_bottom + 10))
         
         # Dibujar trayectoria del electrón (simplificada para esta vista)
         start_x = view_rect.x + 50
@@ -90,12 +100,12 @@ class CRTVisualizer:
         # Calcular deflexión aproximada basada en V_vert
         deflection = (V_vert / 1000) * 30  # Escalado para visualización
         
-        # Trayectoria en tres segmentos
+        # Trayectoria en segmentos que corresponden a las regiones físicas
         points = [
-            (start_x, start_y),  # Inicio
-            (plate_x, start_y),  # Antes de las placas
-            (plate_x + 40, start_y + deflection),  # Después de las placas
-            (view_rect.x + 320, start_y + deflection * 1.5)  # Hacia la pantalla
+            (start_x, start_y),  # Inicio (cañón)
+            (plate_start_x, start_y),  # Antes de las placas verticales
+            (plate_end_x, start_y + deflection * 0.5),  # Durante las placas (deflexión parcial)
+            (view_rect.x + 320, start_y + deflection)  # Después de las placas (deflexión completa)
         ]
         
         if len(points) > 1:
@@ -106,11 +116,11 @@ class CRTVisualizer:
         pygame.draw.circle(surface, self.colors['electron'], 
                             (int(electron_pos[0]), int(electron_pos[1])), 4)
 
-    def draw_top_view(self, surface, V_acc = 1000, V_horiz=0):
+    def draw_top_view(self, surface, V_acc=1000, V_horiz=0):
         """
         Dibuja la vista superior del CRT (muestra deflexión horizontal)
+        CORREGIDO: Placas horizontales en la posición física correcta
         """
-        
         view_rect = self.top_view
         pygame.draw.rect(surface, self.colors['background'], view_rect)
         pygame.draw.rect(surface, self.colors['border'], view_rect, 2)
@@ -123,40 +133,49 @@ class CRTVisualizer:
         tube_rect = pygame.Rect(view_rect.x + 30, view_rect.y + 80, 280, 60)
         pygame.draw.rect(surface, self.colors['crt_body'], tube_rect, 2)
         
-        # Dibujar placas de deflexión horizontal
-        plate_x_left = view_rect.x + 160
-        plate_x_right = view_rect.x + 260
-        plate_y = view_rect.y + 105
+        # CORREGIDO: Placas de deflexión horizontal en la posición física correcta
+        # Las placas horizontales van de 13 cm a 18 cm desde el cañón (5+5+3 a 5+5+3+5)
+        total_length = 0.23  # 23 cm total
+        tube_start_x = view_rect.x + 30
         
-        # Placa izquierda
+        plate_start_pos = self.distance_gun_to_vert_plates + 0.05 + self.distance_vert_to_horiz_plates  # 13 cm
+        plate_start_x = tube_start_x + int((plate_start_pos / total_length) * 280)
+        plate_end_x = plate_start_x + int((0.05 / total_length) * 280)  # 5 cm de longitud de placa
+        
+        plate_y_center = view_rect.y + 110
+        plate_height = 25
+        
+        # Placa superior (en vista superior se ve como líneas horizontales)
         pygame.draw.rect(surface, self.colors['plates'], 
-                        (plate_x_left, plate_y, 8, 30), 0)
-        # Placa derecha
+                        (plate_start_x, plate_y_center - plate_height//2 - 5, 
+                         plate_end_x - plate_start_x, 8), 0)
+        # Placa inferior
         pygame.draw.rect(surface, self.colors['plates'], 
-                        (plate_x_right, plate_y, 8, 30), 0)
+                        (plate_start_x, plate_y_center + plate_height//2 - 3, 
+                         plate_end_x - plate_start_x, 8), 0)
         
         # Mostrar polaridad de las placas
         polarity_text = "+" if V_horiz > 0 else "-" if V_horiz < 0 else "0"
         surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
-                    (plate_x_right + 15, plate_y + 10))
+                    (plate_end_x + 5, plate_y_center + plate_height//2 - 8))
         
         polarity_text = "-" if V_horiz > 0 else "+" if V_horiz < 0 else "0"
         surface.blit(self.font.render(polarity_text, True, self.colors['text']), 
-                    (plate_x_left - 15, plate_y + 10))
+                    (plate_end_x + 5, plate_y_center - plate_height//2 - 5))
         
         # Dibujar trayectoria del electrón
         start_x = view_rect.x + 50
-        start_y = view_rect.y + 120
+        start_y = view_rect.y + 110
         
         # Calcular deflexión aproximada basada en V_horiz
         deflection = (V_horiz / 1000) * 25  # Escalado para visualización
         
-        # Trayectoria en tres segmentos
+        # Trayectoria en segmentos que corresponden a las regiones físicas
         points = [
-            (start_x, start_y),  # Inicio
-            (plate_x_left, start_y),  # Antes de las placas
-            (plate_x_right + 8, start_y + deflection),  # Después de las placas
-            (view_rect.x + 320, start_y + deflection * 1.3)  # Hacia la pantalla
+            (start_x, start_y),  # Inicio (cañón)
+            (plate_start_x, start_y),  # Antes de las placas horizontales
+            (plate_end_x, start_y + deflection * 0.5),  # Durante las placas (deflexión parcial)
+            (view_rect.x + 320, start_y + deflection)  # Después de las placas (deflexión completa)
         ]
         
         if len(points) > 1:
@@ -171,7 +190,6 @@ class CRTVisualizer:
         """
         Dibuja la vista frontal de la pantalla del CRT
         """
-
         view_rect = self.screen_view
 
         # Fondo negro de la pantalla del CRT
@@ -212,7 +230,6 @@ class CRTVisualizer:
         """
         Dibuja un sistema de coordenadas para las vistas
         """
-
         # Ejes
         center_x = view_rect.centerx
         center_y = view_rect.centery
@@ -230,7 +247,6 @@ class CRTVisualizer:
         """
         Añade un punto a la pantalla con coordenadas normalizadas (0-1)
         """
-
         # Asegurar que las coordenadas estén en el rango válido
         normalized_x = max(0, min(1, normalized_x))
         normalized_y = max(0, min(1, normalized_y))
@@ -263,7 +279,6 @@ class CRTVisualizer:
         """
         Función principal que dibuja todas las vistas del CRT
         """
-
         # Limpiar fondo
         surface.fill((255, 255, 255))
         
