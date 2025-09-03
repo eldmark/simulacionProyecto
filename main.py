@@ -27,16 +27,16 @@ def draw_ui(screen, color_mode, xpos=50, ypos=350):
     if not mode:
         mode_text = font.render(f"Modo: Manual", True, color_mode[0])
     else:
-        mode_text = font.render(f"Modo: Toggle", True, color_mode[0])
+        mode_text = font.render(f"Modo: Lissajous", True, color_mode[0])
     screen.blit(mode_text, (50, 350))
     
     # Aquí están las coordenadas del botón
-    mode_button = pygame.Rect(ypos, xpos, 170, 40)
+    mode_button = pygame.Rect(50, 390, 170, 40)
     pygame.draw.rect(screen, color_mode[1], mode_button, 2)
     
     # Cambiar de modo
     button_text = font.render("Cambiar Modo", True, color_mode[0])
-    screen.blit(button_text, (60, 390))
+    screen.blit(button_text, (60, 395))
     
     return mode_button
 
@@ -44,31 +44,47 @@ def handle_ui_events(event, mode_button):
     """Maneja los eventos de la interfaz de usuario."""
     global V_acc, V_vert, V_horiz, persistence, freq_v, freq_h, mode
 
+    # Manejar eventos de sliders
     for slider in sliders:
-        if slider.handle_event(event):
-            # Actualizar variables globales según el slider
-            slider_name = slider.label.split(":")[0].lower().replace(" ", "_")
-            if slider_name == "v_aceleración":
-                V_acc = slider.value
-            elif slider_name == "v_vertical":
-                V_vert = slider.value
-            elif slider_name == "v_horizontal":
-                V_horiz = slider.value
-            elif slider_name == "persistencia":
-                persistence = slider.value
-            elif slider_name == "frecuencia_vertical":
-                freq_v = slider.value
-            elif slider_name == "frecuencia_horizontal":
-                freq_h = slider.value
+        slider.handle_event(event)  # El método no retorna valor, solo maneja el evento
+        
+        # Actualizar variables globales según el slider después de manejar el evento
+        slider_name = slider.title.split(":")[0].lower().replace(" ", "_")
+        if slider_name == "v_aceleración":
+            V_acc = slider.value
+        elif slider_name == "v_vertical":
+            V_vert = slider.value
+        elif slider_name == "v_horizontal":
+            V_horiz = slider.value
+        elif slider_name == "persistencia":
+            persistence = slider.value
+        elif slider_name == "frecuencia_vertical":
+            freq_v = slider.value
+        elif slider_name == "frecuencia_horizontal":
+            freq_h = slider.value
     
     # Cambiar modo si se hace clic en el botón
     if event.type == MOUSEBUTTONDOWN and event.button == 1:
         if mode_button.collidepoint(event.pos):
-            global mode
             mode = not mode
-            return
+            return True  # Indicar que hubo cambio de modo
     
-    return None
+    return False
+
+def update_slider_values_from_lissajous(V_vert_calc, V_horiz_calc):
+    """Actualiza visualmente los valores de los sliders en modo Lissajous"""
+    global sliders
+    
+    for slider in sliders:
+        slider_name = slider.title.split(":")[0].lower().replace(" ", "_")
+        if slider_name == "v_vertical":
+            # Actualizar el valor del slider y la posición del handle
+            slider.value = max(slider.min_val, min(slider.max_val, V_vert_calc))
+            slider.handle_pos = slider.value_to_pos(slider.value)
+        elif slider_name == "v_horizontal":
+            # Actualizar el valor del slider y la posición del handle
+            slider.value = max(slider.min_val, min(slider.max_val, V_horiz_calc))
+            slider.handle_pos = slider.value_to_pos(slider.value)
 
 def main():
     global V_acc, V_vert, V_horiz, persistence, mode, freq_v, freq_h, sliders
@@ -112,8 +128,13 @@ def main():
             handle_ui_events(event, mode_button)
         
         # Actualizar estado de los sliders según el modo
+        # En modo Lissajous, deshabilitar sliders de voltaje manual
         for slider in sliders:
-            slider.set_disabled(mode)
+            slider_name = slider.title.split(":")[0].lower().replace(" ", "_")
+            if mode and (slider_name == "v_vertical" or slider_name == "v_horizontal"):
+                slider.set_disabled(True)  # Deshabilitar voltajes en modo Lissajous
+            else:
+                slider.set_disabled(False)  # Habilitar otros controles
         
         # Actualizar simulación según el modo
         if mode:  # Modo Lissajous
@@ -121,9 +142,16 @@ def main():
             lissajous_time += 0.016  # Aproximadamente 60 FPS
             
             # Generar voltajes sinusoidales
-            V_vert, V_horiz = visualizer.generate_lissajous_point(
+            V_vert_calc, V_horiz_calc = visualizer.generate_lissajous_point(
                 lissajous_time, freq_v, freq_h
             )
+            
+            # Actualizar variables globales para mostrar en info
+            V_vert = V_vert_calc
+            V_horiz = V_horiz_calc
+            
+            # Actualizar sliders visualmente
+            update_slider_values_from_lissajous(V_vert_calc, V_horiz_calc)
             
             # Calcular posición en pantalla
             x_pos, y_pos = visualizer.calculate_electron_position(V_acc, V_vert, V_horiz)
